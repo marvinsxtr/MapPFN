@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml_project_template"
+version = "0.0.14"
+requires-python = ">=3.12"
+dependencies = [
+  "wandb>=0.18.5",
+  "hydra-zen>=0.14.0",
+  "submitit>=1.5.1",
+  "python-dotenv>=1.0.1",
+  "pydantic>=2.10.3",
+  "pytest>=8.3.5",
+]
+
+[dependency-groups]
+dev = ["pre-commit>=4.0.1", "ruff>=0.8.0"]
+
+[tool.setuptools.packages.find]
+include = ["ml_project_template"]
+namespaces = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.mypy]
+explicit_package_bases = true
+disable_error_code = ["import-untyped"]
+
+[tool.ruff]
+line-length = 119
+indent-width = 4
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "ANN002",
+  "ANN003",
+  "ANN401",
+  "D413",
+  "COM812",
+  "D100",
+  "D104",
+  "D107",
+  "D205",
+  "PD901",
+  "D400",
+  "D401",
+  "D415",
+  "FA",
+  "SLF",
+  "INP",
+  "TRY003",
+  "TRY201",
+  "EM",
+  "FBT",
+  "RET",
+  "C406",
+  "E741",
+  "PLR2004",
+  "RUF009",
+  "RUF012",
+  "BLE001",
+  "S603",
+  "S607",
+  "S506",
+  "FIX002",
+  "NPY002",
+  "G004",
+  "S311",
+  "PIE790",
+  "TRY400",
+  "S108",
+  "W191",
+  "E111",
+  "E114",
+  "E117",
+  "D206",
+  "D300",
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "COM812",
+  "COM819",
+  "D203",
+  "D213",
+  "N806",
+  "N803",
+  "E712",
+  "PLR0913",
+  "TC001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*.py" = ["S101", "ARG", "FBT"]
