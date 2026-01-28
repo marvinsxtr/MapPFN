@@ -1,13 +1,14 @@
 from collections.abc import Callable
 from functools import partial
 
-import wandb
+import h5py
 from hydra_zen import instantiate, store, to_yaml, zen
 from hydra_zen.third_party.pydantic import pydantic_parser
-from omegaconf import DictConfig, OmegaConf
-
 from ml_project_template.utils import ConfigKeys, get_output_dir, logger
 from ml_project_template.wandb import WandBRun
+from omegaconf import DictConfig, OmegaConf, open_dict
+
+import wandb
 
 
 def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = None, verbose: bool = False) -> None:
@@ -20,9 +21,6 @@ def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = No
     """
     config: DictConfig = root_config[ConfigKeys.CONFIG]
 
-    if config.get(ConfigKeys.JOB, None) is not None:
-        return
-
     if (seed := config.get(ConfigKeys.SEED)) is not None:
         if seed_fn is None:
             raise ValueError("No seeding function was set for the given seed.")
@@ -32,6 +30,20 @@ def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = No
             logger.info(f"Set seed to {seed}.")
     else:
         logger.warning("No seed was configured! Run may not be reproducible.")
+
+    if config.get("datamodule") is not None:
+        with h5py.File(config.datamodule.dataset_path, "r") as f:
+            num_vars = f["X"].shape[1]
+            commit_hash = f["uns"]["commit_hash"][()].decode("utf-8")
+
+        with open_dict(config):
+            config.globals.in_dim = num_vars
+            config.globals.data_commit_hash = commit_hash
+
+        logger.info(f"Set input dimension to {num_vars} based on dataset.")
+
+    if config.get(ConfigKeys.JOB, None) is not None:
+        return
 
     if config is None:
         raise KeyError(f"Config must contain {ConfigKeys.CONFIG} at root-level.")
