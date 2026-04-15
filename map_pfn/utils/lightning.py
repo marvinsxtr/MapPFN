@@ -12,7 +12,7 @@ from lightning.pytorch.callbacks import Checkpoint
 from ml_project_template.utils import get_output_dir
 
 import wandb
-from map_pfn.data.utils import BatchKeys
+from map_pfn.data.utils import BatchKeys, ColumnNames, Values
 from map_pfn.eval.metrics import compute_distribution_metrics
 from map_pfn.utils.logging import logger
 
@@ -167,12 +167,12 @@ class TestMetrics(Callback):
         base_path = get_output_dir()
 
         for dataloader_idx, outputs in self._outputs.items():
-            obs_data = np.concatenate([b[BatchKeys.OBS_DATA] for b in outputs], axis=0)
-            int_data = np.concatenate([b[BatchKeys.INT_DATA] for b in outputs], axis=0)
-            pred_int_data = np.concatenate([b[BatchKeys.PRED_INT_DATA] for b in outputs], axis=0)
-            treatment = np.concatenate([b[BatchKeys.TREATMENT] for b in outputs], axis=0)
-            context_id = np.concatenate([b[BatchKeys.CONTEXT_ID] for b in outputs], axis=0)
-            treatment_id = np.concatenate([b[BatchKeys.TREATMENT_ID] for b in outputs], axis=0)
+            obs_data = np.concatenate([b[BatchKeys.OBS_DATA] for b in outputs])
+            int_data = np.concatenate([b[BatchKeys.INT_DATA] for b in outputs])
+            pred_int_data = np.concatenate([b[BatchKeys.PRED_INT_DATA] for b in outputs])
+            treatment = np.concatenate([b[BatchKeys.TREATMENT] for b in outputs])
+            context_id = np.concatenate([b[BatchKeys.CONTEXT_ID] for b in outputs])
+            treatment_id = np.concatenate([b[BatchKeys.TREATMENT_ID] for b in outputs])
 
             metrics_key = jax.random.PRNGKey(self.seed)
             dist_metrics = compute_distribution_metrics(obs_data, int_data, pred_int_data, key=metrics_key)
@@ -180,18 +180,43 @@ class TestMetrics(Callback):
             suffix = "" if dataloader_idx == 0 else "/prior"
             module.log_dict({f"test/{k}{suffix}": v for k, v in dist_metrics.items()}, add_dataloader_idx=False)
 
-            _, n_cells, n_features = int_data.shape
+            n_samples, n_cells, n_features = int_data.shape
+
+            X = np.concatenate([obs_data.reshape(-1, n_features), int_data.reshape(-1, n_features)])
+
+            pred = np.concatenate(
+                [
+                    np.full((n_samples * n_cells, n_features), np.nan, dtype=np.float32),
+                    pred_int_data.reshape(-1, n_features),
+                ]
+            )
+
+            control_treatment_id = np.full(n_samples, Values.CONTROL, dtype=object)
+            full_treatment_id = np.concatenate([control_treatment_id, treatment_id.reshape(-1)])
+
+            has_pred = np.concatenate(
+                [np.zeros(n_samples * n_cells, dtype=bool), np.ones(n_samples * n_cells, dtype=bool)]
+            )
+            obs_context = np.concatenate([np.repeat(context_id, n_cells), np.repeat(context_id, n_cells)])
+            obs_treatment = np.repeat(full_treatment_id, n_cells)
+            treatment_2d = treatment.squeeze(1)
+            obsm_treatment = np.concatenate(
+                [np.repeat(treatment_2d, n_cells, axis=0), np.repeat(treatment_2d, n_cells, axis=0)]
+            )
 
             adata = ad.AnnData(
-                X=int_data.reshape(-1, n_features),
+                X=X,
                 obs={
-                    BatchKeys.CONTEXT_ID: np.repeat(context_id, n_cells),
-                    BatchKeys.TREATMENT_ID: np.repeat(treatment_id, n_cells),
+                    ColumnNames.CONTEXT: obs_context,
+                    ColumnNames.TREATMENT: obs_treatment,
+                    ColumnNames.HAS_PRED: has_pred,
                 },
                 obsm={
-                    BatchKeys.TREATMENT: np.repeat(treatment, n_cells, axis=0),
+                    BatchKeys.TREATMENT: obsm_treatment,
                 },
-                layers={"pred": pred_int_data.reshape(-1, n_features)},
+                layers={
+                    ColumnNames.PRED: pred,
+                },
             )
 
             suffix = "" if dataloader_idx == 0 else "_prior"

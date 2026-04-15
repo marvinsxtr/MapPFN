@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import anndata as ad
+import numpy as np
 from hydra_zen.typing import Partial
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
@@ -53,6 +54,7 @@ class DataModule(LightningDataModule):
         self.drop_last = drop_last
         self._collate_fn = collate_fn if collate_fn is not None else default_collate_fn
         self.add_prior = prior_dataset_path is not None
+        self._predict_seed: int | None = None
 
         self.adata = ad.read_h5ad(self.dataset_path)
         self.prior_adata = ad.read_h5ad(self.prior_dataset_path) if self.add_prior else None
@@ -151,6 +153,17 @@ class DataModule(LightningDataModule):
 
         return DataLoader(self.test_dataset, **loader_config)
 
-    def predict_dataloader(self) -> DataLoader:
-        """Create the predict dataloader (uses test dataset)."""
+    def set_predict_seed(self, seed: int) -> None:
+        """Set the seed used for cell subsampling during prediction.
+
+        Args:
+            seed: The random seed for cell subsampling.
+        """
+        self._predict_seed = seed
+
+    def predict_dataloader(self) -> DataLoader | list[DataLoader]:
+        """Create the predict dataloader(s)."""
+        if self._predict_seed is not None:
+            self.test_dataset.rng = np.random.default_rng(self._predict_seed)
+
         return self.test_dataloader()

@@ -56,8 +56,9 @@ class GlobalGNN(nn.Module):
                 input_size, self.D, self.num_hidden_decoder, self.num_layers_decoder
             )
 
-            self.temporal_freqs = (
-                torch.arange(1, self.num_temporal_freqs + 1, device="cuda") * torch.pi
+            self.register_buffer(
+                "temporal_freqs",
+                torch.arange(1, self.num_temporal_freqs + 1) * torch.pi,
             )
         else:
             input_size = (
@@ -77,13 +78,14 @@ class GlobalGNN(nn.Module):
                     input_size, self.D, self.num_hidden_decoder, self.num_layers_decoder
                 )
 
-            self.temporal_freqs = (
-                torch.arange(1, self.num_temporal_freqs + 1, device="cuda") * torch.pi
+            self.register_buffer(
+                "temporal_freqs",
+                torch.arange(1, self.num_temporal_freqs + 1) * torch.pi,
             )
-            
-        self.B = (
-            torch.randn((self.D, self.num_spatial_samples), device="cuda")
-            * self.spatial_feat_scale
+
+        self.register_buffer(
+            "B",
+            torch.randn((self.D, self.num_spatial_samples)) * self.spatial_feat_scale,
         )
     
     def embed_source(self, source_samples, cond=None):        

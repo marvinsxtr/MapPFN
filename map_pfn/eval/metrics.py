@@ -1,11 +1,17 @@
 from functools import partial
 
+import anndata as ad
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
+import scanpy as sc
 from jaxtyping import Array, Float, PRNGKeyArray
 from ott.geometry import costs, pointcloud
 from ott.tools.sinkhorn_divergence import sinkhorn_divergence
+from sklearn.metrics import average_precision_score, precision_recall_curve
+
+from map_pfn.utils.helpers import suppress_output
 
 
 def compute_distribution_metrics(
@@ -13,6 +19,7 @@ def compute_distribution_metrics(
     int_data: Float[Array, "batch_size num_samples dim"],
     gen_int_data: Float[Array, "batch_size num_samples dim"],
     key: PRNGKeyArray, # noqa: ARG001
+    treatment_indices: Float[Array, "batch_size dim"] | None = None,
 ) -> dict[str, float]:
     """Computes distribution metrics as a dictionary.
 
@@ -20,8 +27,9 @@ def compute_distribution_metrics(
         obs_data: Array of shape [batch size, num_samples, dim]
         int_data: Array of shape [batch size, num_samples, dim]
         gen_int_data: Array of shape [batch size, num_samples, dim]
-        treatments: [batch size]
         key: Random key
+        treatment_indices: Optional one-hot treatment array of shape [batch_size, dim].
+            When provided, a "target_only_auprc" metric is also computed.
 
     Returns:
     Dict containing the metrics as floats.
@@ -40,14 +48,18 @@ def compute_distribution_metrics(
     # Distribution metrics
     metrics["wasserstein"] = jax.vmap(wasserstein_distance)(int_data, gen_int_data).mean().item()
     metrics["mmd"] = jax.vmap(multiscale_mmd)(int_data, gen_int_data).mean().item()
+    metrics["deg_auprc"] = deg_auprc(obs_data, int_data, gen_int_data)["ap"]
+
+    if treatment_indices is not None:
+        result = deg_auprc(obs_data, int_data, gen_int_data, treatment_indices=treatment_indices)
+        metrics["target_only_auprc"] = result["target_only_ap"]
 
     # Magnitude ratio
     metrics["wasserstein_mag_ratio"] = jax.vmap(wasserstein_mag_ratio)(obs_data, int_data, gen_int_data).mean().item()
 
+    # Perturbation discrimination score
     if batch_size > 1:
-        rank, transposed_rank = compute_rank_metrics(int_data, gen_int_data)
-        metrics["rank"] = rank.item()
-        metrics["transposed_rank"] = transposed_rank.item()
+        metrics["pds"] = perturbation_discrimination_score(int_data, gen_int_data).item()
 
     return metrics
 
@@ -231,18 +243,17 @@ def var_r2(x: Float[Array, "num_samples dim"], y: Float[Array, "num_samples dim"
 
 
 @eqx.filter_jit
-def compute_rank_metrics(
-    int_data: Float[Array, "batch_size num_samples dim"],
-    gen_int_data: Float[Array, "batch_size num_samples dim"],
-) -> tuple[Float[Array, ""], Float[Array, ""]]:
-    """Computes the rank and transposed rank metrics.
+def perturbation_discrimination_score(
+    int_data: Float[Array, "batch_size num_samples dim"], gen_int_data: Float[Array, "batch_size num_samples dim"]
+) -> Float[Array, ""]:
+    """Computes the perturbation discrimination score (PDS).
 
     Args:
         int_data: True interventional data (batch_size is number of perturbations).
         gen_int_data: Predicted interventional data.
 
     Returns:
-        Tuple of (rank_metric, transposed_rank_metric).
+        Perturbation discrimination score.
     """
     mu_true = jnp.mean(int_data, axis=1)
     mu_pred = jnp.mean(gen_int_data, axis=1)
@@ -254,12 +265,118 @@ def compute_rank_metrics(
     diagonals = jnp.diagonal(dist_matrix)
     off_diagonal_mask = ~jnp.eye(p, dtype=bool)
 
-    row_comparisons = dist_matrix <= diagonals[:, None]
-    rank_counts = jnp.sum(row_comparisons * off_diagonal_mask, axis=1)
-    rank_metric = jnp.mean(rank_counts / (p - 1))
-
     col_comparisons = dist_matrix <= diagonals[None, :]
     transposed_rank_counts = jnp.sum(col_comparisons * off_diagonal_mask, axis=0)
-    transposed_rank_metric = jnp.mean(transposed_rank_counts / (p - 1))
+    perturbation_discrimination_score = jnp.mean(transposed_rank_counts / (p - 1))
 
-    return rank_metric, transposed_rank_metric
+    return perturbation_discrimination_score
+
+
+def deg_auprc(
+    obs_data: Float[Array, "batch_size num_samples dim"],
+    int_data: Float[Array, "batch_size num_samples dim"],
+    gen_int_data: Float[Array, "batch_size num_samples dim"],
+    pval_threshold: float = 0.01,
+    lfc_threshold: float = 0.2,
+    treatment_indices: Float[Array, "batch_size dim"] | None = None,
+) -> dict:
+    """Compute AUPRC for differentially expressed gene detection across all treatments.
+
+    Args:
+        obs_data: Control/observational samples of shape [batch_size, num_samples, dim].
+        int_data: True interventional samples of shape [batch_size, num_samples, dim].
+        gen_int_data: Generated interventional samples of shape [batch_size, num_samples, dim].
+        pval_threshold: P-value threshold for calling a gene differentially expressed.
+        lfc_threshold: Log fold change threshold for calling a gene differentially expressed.
+        treatment_indices: Optional one-hot treatment array of shape [batch_size, dim].
+            When provided, a "target-only" baseline AUPRC is also computed (predicts
+            score=1 for the knocked-out gene, 0 elsewhere).
+
+    Returns:
+        Dict with keys: ap, baseline, n_degs, target_only_ap, curve.
+    """
+    batch_size = int_data.shape[0]
+
+    obs_np = np.asarray(obs_data)
+    int_np = np.asarray(int_data)
+    gen_np = np.asarray(gen_int_data)
+
+    treatment_np = np.asarray(treatment_indices) if treatment_indices is not None else None
+
+    all_y_true = []
+    all_y_score = []
+    all_target_score = []
+
+    for i in range(batch_size):
+        with suppress_output():
+            adata_ctrl = ad.AnnData(X=obs_np[i])
+            adata_ctrl.obs["condition"] = "control"
+
+            adata_true = ad.AnnData(X=int_np[i])
+            adata_true.obs["condition"] = "treatment"
+
+            adata_pred = ad.AnnData(X=gen_np[i])
+            adata_pred.obs["condition"] = "treatment"
+
+            adata_true_combined = ad.concat([adata_true, adata_ctrl])
+            adata_pred_combined = ad.concat([adata_pred, adata_ctrl])
+
+            sc.tl.rank_genes_groups(
+                adata_true_combined,
+                groupby="condition",
+                reference="control",
+                method="wilcoxon",
+            )
+            sc.tl.rank_genes_groups(
+                adata_pred_combined,
+                groupby="condition",
+                reference="control",
+                method="wilcoxon",
+            )
+
+        df_true = sc.get.rank_genes_groups_df(adata_true_combined, group="treatment").set_index("names")
+        df_pred = sc.get.rank_genes_groups_df(adata_pred_combined, group="treatment").set_index("names")
+
+        true_pvals = df_true["pvals_adj"].to_numpy()
+        true_lfc = df_true["logfoldchanges"].to_numpy()
+        y_true = ((true_pvals < pval_threshold) & (np.abs(true_lfc) > lfc_threshold)).astype(int)
+
+        pred_pvals = df_pred.loc[df_true.index, "pvals_adj"].to_numpy()
+        pred_lfc = df_pred.loc[df_true.index, "logfoldchanges"].to_numpy()
+
+        pred_nan_mask = np.isnan(pred_pvals) | np.isnan(pred_lfc)
+        pred_pvals = np.where(pred_nan_mask, 1.0, pred_pvals)
+        pred_lfc = np.where(pred_nan_mask, 0.0, pred_lfc)
+
+        y_score = np.abs(pred_lfc) * (pred_pvals < pval_threshold).astype(float)
+
+        all_y_true.append(y_true)
+        all_y_score.append(y_score)
+
+        if treatment_np is not None:
+            gene_order = df_true.index.astype(int).to_numpy()
+            all_target_score.append(treatment_np[i][gene_order])
+
+    if len(all_y_true) == 0 or np.concatenate(all_y_true).sum() == 0:
+        return {"ap": float("nan"), "baseline": float("nan"), "n_degs": 0, "target_only_ap": float("nan")}
+
+    all_y_true = np.concatenate(all_y_true)
+    all_y_score = np.concatenate(all_y_score)
+
+    ap = float(average_precision_score(all_y_true, all_y_score))
+    baseline = float(all_y_true.sum() / len(all_y_true))
+
+    target_only_ap = float("nan")
+    if len(all_target_score) > 0:
+        all_target_score = np.concatenate(all_target_score)
+        target_only_ap = float(average_precision_score(all_y_true, all_target_score))
+
+    precision, recall, _ = precision_recall_curve(all_y_true, all_y_score)
+
+    return {
+        "ap": ap,
+        "baseline": baseline,
+        "n_degs": int(all_y_true.sum()),
+        "target_only_ap": target_only_ap,
+        "curve": (precision, recall),
+    }

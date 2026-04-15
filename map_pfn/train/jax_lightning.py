@@ -3,7 +3,9 @@ from pathlib import Path
 from typing import Literal, override
 
 import equinox as eqx
+import jax
 import jax.random as jr
+import jax.sharding as jshard
 import numpy as np
 import optax
 from jaxtyping import Array, Float, PRNGKeyArray
@@ -69,6 +71,11 @@ class JaxLightningModule(LightningModule):
         self.global_step_ = 0
         self.key, self.train_key, self.sample_key, self.metrics_key = jr.split(key, num=4)
 
+        num_devices = len(jax.devices())
+        self.mesh = jax.make_mesh((num_devices,), ("batch",))
+        self.data_sharding = jshard.NamedSharding(self.mesh, jshard.PartitionSpec("batch"))
+        self.model_sharding = jshard.NamedSharding(self.mesh, jshard.PartitionSpec())
+
     @property
     def global_step(self) -> int:
         """Get the current global step."""
@@ -84,9 +91,20 @@ class JaxLightningModule(LightningModule):
         self.model = eqx.nn.inference_mode(self.model, value=split == SplitNames.VAL)
         batch = filter_batch(batch, keys=[BatchKeys.OBS_DATA, BatchKeys.INT_DATA, BatchKeys.TREATMENT])
 
+        if split == SplitNames.TRAIN:
+            batch = eqx.filter_shard(batch, self.data_sharding)
+
         self.train_key, train_key = jr.split(self.train_key)
         loss, aux, self.model, self.opt_state, self.ema_state = JaxLightningModule.make_step(
-            self.model, batch, self.loss_fn, self.opt_state, self.optimizer, self.ema_state, self.ema, train_key
+            self.model,
+            batch,
+            self.loss_fn,
+            self.opt_state,
+            self.optimizer,
+            self.ema_state,
+            self.ema,
+            train_key,
+            self.model_sharding,
         )
         self.ema_model = eqx.combine(self.ema_state.ema, eqx.filter(self.model, eqx.is_array, inverse=True))
         obs_data, int_data, obs_data_cond, int_data_cond, treatment = aux
@@ -186,6 +204,13 @@ class JaxLightningModule(LightningModule):
         }
 
     @override
+    def predict_step(
+        self, batch: dict[str, Float[Array, " batch_size ..."]], batch_idx: int, dataloader_idx: int = 0
+    ) -> dict[str, np.ndarray]:
+        """Execute single predict step and return predictions with metadata."""
+        return self.test_step(batch, batch_idx)
+
+    @override
     def configure_optimizers(self) -> None:
         """Configure AdamW optimizer and initialize optimizer state."""
         if self.optimizer is not None or self.opt_state is not None:
@@ -207,8 +232,14 @@ class JaxLightningModule(LightningModule):
         self.ema_state = self.ema.init(params)
         self.ema_model = self.model
 
+        # Shard model parameters and optimizer/EMA state (replicated on all devices)
+        self.model = eqx.filter_shard(self.model, self.model_sharding)
+        self.opt_state = eqx.filter_shard(self.opt_state, self.model_sharding)
+        self.ema_state = eqx.filter_shard(self.ema_state, self.model_sharding)
+        self.ema_model = eqx.filter_shard(self.ema_model, self.model_sharding)
+
     @staticmethod
-    @eqx.filter_jit
+    @eqx.filter_jit(donate="all")
     def make_step(
         model: eqx.Module,
         batch: Float[Array, " batch_size ..."],
@@ -218,11 +249,13 @@ class JaxLightningModule(LightningModule):
         ema_state: optax.EmaState,
         ema: optax.GradientTransformation,
         key: PRNGKeyArray,
+        model_sharding: jshard.NamedSharding,
     ) -> tuple[Array, tuple, eqx.Module, optax.OptState, optax.EmaState]:
         """Perform one optimization step using computed gradients.
 
         JIT-compiled function that computes loss and gradients, applies optimizer
-        updates, and returns updated model state.
+        updates, and returns updated model state. Uses sharding constraints for
+        multi-device data parallelism.
 
         Args:
             model: Current velocity field model parameters.
@@ -233,15 +266,20 @@ class JaxLightningModule(LightningModule):
             ema_state: Current EMA state.
             ema: EMA transformation.
             key: Random key for loss computation.
+            model_sharding: Sharding spec for model params (replicated).
 
         Returns:
             Tuple of (loss, aux, updated_model, updated_opt_state, updated_ema_state).
         """
+        model, opt_state, ema_state = eqx.filter_shard((model, opt_state, ema_state), model_sharding)
+
         loss_fn = eqx.filter_value_and_grad(loss_fn, has_aux=True)
         (loss, aux), grads = loss_fn(model, batch=batch, key=key)
         updates, opt_state = optimizer.update(grads, opt_state, model)
         model = eqx.apply_updates(model, updates)
         _, ema_state = ema.update(eqx.filter(model, eqx.is_array), ema_state)
+
+        model, opt_state, ema_state = eqx.filter_shard((model, opt_state, ema_state), model_sharding)
         return loss, aux, model, opt_state, ema_state
 
     def save_checkpoint(self, filepath: str | Path) -> None:
@@ -281,3 +319,9 @@ class JaxLightningModule(LightningModule):
         self.opt_state = state_dict["opt_state"]
         self.ema_state = state_dict["ema_state"]
         self.ema_model = eqx.combine(self.ema_state.ema, eqx.filter(self.model, eqx.is_array, inverse=True))
+
+        # Shard loaded state across devices
+        self.model = eqx.filter_shard(self.model, self.model_sharding)
+        self.opt_state = eqx.filter_shard(self.opt_state, self.model_sharding)
+        self.ema_state = eqx.filter_shard(self.ema_state, self.model_sharding)
+        self.ema_model = eqx.filter_shard(self.ema_model, self.model_sharding)

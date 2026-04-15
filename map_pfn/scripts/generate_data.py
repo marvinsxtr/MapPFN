@@ -33,7 +33,7 @@ def generate_data(cfg: DataGeneratorRun) -> None:
         num_workers=num_workers,
         persistent_workers=False,
         collate_fn=collate_fn,
-        drop_last=True,
+        drop_last=False,
     )
 
     num_batches = int(np.ceil(len(dataset) / dataloader.batch_size))

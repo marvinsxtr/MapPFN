@@ -11,6 +11,14 @@ from sklearn.model_selection import train_test_split
 
 
 @dataclass
+class Datasets:
+    """Standardized dataset names."""
+
+    FRANGIEH: Final[str] = "frangieh"
+    PAPALEXI: Final[str] = "papalexi"
+
+
+@dataclass
 class Values:
     """Standardized values."""
 
@@ -37,6 +45,8 @@ class ColumnNames:
     CONTEXT: Final[str] = "context"
     TREATMENT: Final[str] = "treatment"
     SPLIT: Final[str] = "split"
+    PRED: Final[str] = "pred"
+    HAS_PRED: Final[str] = "has_pred"
     TECH_DUP_SPLIT: Final[str] = "tech_dup_split"
     TECH_DUP_MEAN: Final[str] = "tech_dup_mean"
     DATA_MEAN: Final[str] = "data_mean"
@@ -175,18 +185,25 @@ def assign_split(
     cond = adata.obs[[ColumnNames.CONTEXT, ColumnNames.TREATMENT]].apply(tuple, axis=1)
 
     unique_cond = cond[~control_mask & ~holdout_mask].drop_duplicates()
-    train_cond, val_cond = train_test_split(unique_cond, test_size=val_share, random_state=seed)
-
-    adata.obs.loc[cond.isin(train_cond), ColumnNames.SPLIT] = SplitNames.TRAIN
-    adata.obs.loc[cond.isin(val_cond), ColumnNames.SPLIT] = SplitNames.VAL
-
     holdout_cond = cond[~control_mask & holdout_mask].drop_duplicates()
+
     other_cond, test_cond = train_test_split(holdout_cond, test_size=test_share, random_state=seed)
 
     adata.obs.loc[cond.isin(test_cond), ColumnNames.SPLIT] = SplitNames.TEST
-    adata.obs.loc[cond.isin(other_cond), ColumnNames.SPLIT] = SplitNames.TEST_OTHER
-
     adata.obs.loc[control_mask, ColumnNames.SPLIT] = SplitNames.CONTROL
+
+    if len(unique_cond) > 0:
+        unique_contexts = unique_cond.apply(lambda x: x[0])
+        train_cond, val_cond = train_test_split(
+            unique_cond, test_size=val_share, random_state=seed, stratify=unique_contexts
+        )
+        adata.obs.loc[cond.isin(train_cond), ColumnNames.SPLIT] = SplitNames.TRAIN
+        adata.obs.loc[cond.isin(val_cond), ColumnNames.SPLIT] = SplitNames.VAL
+        adata.obs.loc[cond.isin(other_cond), ColumnNames.SPLIT] = SplitNames.TEST_OTHER
+    else:
+        train_cond, val_cond = train_test_split(other_cond, test_size=val_share, random_state=seed)
+        adata.obs.loc[cond.isin(train_cond), ColumnNames.SPLIT] = SplitNames.TRAIN
+        adata.obs.loc[cond.isin(val_cond), ColumnNames.SPLIT] = SplitNames.VAL
 
     adata.obs[ColumnNames.SPLIT] = adata.obs[ColumnNames.SPLIT].astype(
         CategoricalDtype(categories=[str(f.default) for f in fields(SplitNames)])
@@ -207,6 +224,10 @@ def split_dataset(adata: ad.AnnData, ood: bool) -> tuple[ad.AnnData, ad.AnnData,
     """
     if ColumnNames.SPLIT not in adata.obs.columns:
         raise ValueError(f"Column '{ColumnNames.SPLIT}' not found in adata.obs.")
+
+    n_contexts = adata.obs[ColumnNames.CONTEXT].nunique()
+    if ood and n_contexts < 2:
+        raise ValueError(f"OOD split requires at least 2 contexts, but only {n_contexts} found.")
 
     adata.obs.loc[adata.obs[ColumnNames.SPLIT] == SplitNames.TEST_OTHER, ColumnNames.SPLIT] = (
         SplitNames.OTHER if ood else SplitNames.TRAIN

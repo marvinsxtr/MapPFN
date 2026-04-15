@@ -32,10 +32,12 @@ class TrainingRun(NamedTuple):
     seed: int | None = None
     job: Job | None = None
     debug: bool = False
-    load_artifact: str | None = None
+    load_checkpoint: str | None = None
 
 
-GlobalsConfig = builds(dict, in_dim=MISSING, num_steps=50_000, data_commit_hash=MISSING)
+GlobalsConfig = builds(
+    dict, in_dim=MISSING, num_steps=50_000, data_commit_hash=MISSING, prior_data_commit_hash=MISSING
+)
 TestMetricsConfig = builds(TestMetrics)
 ModelSummaryConfig = builds(ModelSummary)
 CheckpointerConfig = builds(Checkpointer, dirpath=builds(get_output_dir), filename="model")
@@ -45,11 +47,12 @@ TrainerConfig = builds(
     JaxTrainer,
     callbacks=[CheckpointerConfig, ModelSummaryConfig, StopperConfig, TestMetricsConfig],
     max_steps="${globals: num_steps}",
-    val_check_interval=500,
+    val_check_interval=1000,
     limit_val_batches=1,
     log_every_n_steps=10,
     check_val_every_n_epoch=None,
     enable_model_summary=False,
+    devices=1,
     zen_partial=True,
 )
 
@@ -65,8 +68,8 @@ DataModuleConfig = builds(
     dataset_path=MISSING,
     prior_dataset_path=None,
     dataset=PerturbationDatasetConfig,
-    ood=True,
-    num_shots=4,
+    ood=False,
+    num_shots=8,
     batch_size=32,
     num_workers=cpu_count() - 1,
     persistent_workers=True,
@@ -78,14 +81,25 @@ SCMDataModuleConfig = {
     "dataset": {"num_samples": 500},
 }
 
-RNADataModuleConfig = {
-    "dataset_path": "datasets/single_cell/frangieh_rna.h5ad",
+FrangiehFinetuneDataModuleConfig = {
+    "dataset_path": "datasets/single_cell/frangieh.h5ad",
     "dataset": {"num_samples": 200},
 }
 
-SergioRNADataModuleConfig = {
-    "dataset_path": "datasets/single_cell/frangieh_rna.h5ad",
-    "prior_dataset_path": '${eval:\'"datasets/synthetic/sergio_grn.h5ad" if "map_pfn" in "${cfg.name}" else None\'}',
+PapalexiFinetuneDataModuleConfig = {
+    "dataset_path": "datasets/single_cell/papalexi.h5ad",
+    "dataset": {"num_samples": 200},
+}
+
+FrangiehDataModuleConfig = {
+    "dataset_path": "datasets/single_cell/frangieh.h5ad",
+    "prior_dataset_path": '${eval:\'"datasets/synthetic/sergio.h5ad" if "map_pfn" in "${cfg.name}" else None\'}',
+    "dataset": {"num_samples": 200},
+}
+
+PapalexiDataModuleConfig = {
+    "dataset_path": "datasets/single_cell/papalexi.h5ad",
+    "prior_dataset_path": '${eval:\'"datasets/synthetic/sergio.h5ad" if "map_pfn" in "${cfg.name}" else None\'}',
     "dataset": {"num_samples": 200},
 }
 
@@ -141,7 +155,7 @@ MapPFNSCMTrainingRunConfig = builds(
     job=None,
     globals=GlobalsConfig,
     debug=False,
-    load_artifact=None,
+    load_checkpoint=None,
 )
 
 MapPFNRNATrainingRunConfig = MapPFNSCMTrainingRunConfig(

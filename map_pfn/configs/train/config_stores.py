@@ -3,20 +3,20 @@ from hydra_zen import MISSING, builds, store
 from map_pfn.configs.run_config import (
     CPUJobConfig,
     GPUJobConfig,
-    SweepCondOTSCMConfig,
-    SweepMetaFMSCMConfig,
-    SweepMapPFNSCMConfig,
+    MultiGPUJobConfig,
     SweepMapPFNSergioConfig,
     SweepMethodsSCMConfig,
     SweepMethodsSergioConfig,
     WandBConfig,
 )
 from map_pfn.configs.train.base_config import (
+    FrangiehDataModuleConfig,
+    FrangiehFinetuneDataModuleConfig,
     MapPFNRNATrainingRunConfig,
     MapPFNSCMTrainingRunConfig,
-    RNADataModuleConfig,
+    PapalexiDataModuleConfig,
+    PapalexiFinetuneDataModuleConfig,
     SCMDataModuleConfig,
-    SergioRNADataModuleConfig,
 )
 from map_pfn.configs.train.baseline_config import (
     CondOTRNATrainingRunConfig,
@@ -33,8 +33,8 @@ store(
     name="root",
     hydra_defaults=[
         "_self_",
-        {"cfg": "map_pfn_scm"},
-        {"cfg/datamodule": "scm"},
+        {"cfg": "map_pfn_rna"},
+        {"cfg/datamodule": "frangieh"},
         {"cfg/wandb": None},
         {"cfg/job": None},
     ],
@@ -50,18 +50,18 @@ cfg_store(MetaFMRNATrainingRunConfig, name="metafm_rna")
 
 datamodule_store = store(group="cfg/datamodule")
 datamodule_store(SCMDataModuleConfig, name="scm")
-datamodule_store(RNADataModuleConfig, name="rna")
-datamodule_store(SergioRNADataModuleConfig, name="sergio_rna")
+datamodule_store(FrangiehDataModuleConfig, name="frangieh")
+datamodule_store(PapalexiDataModuleConfig, name="papalexi")
+datamodule_store(FrangiehFinetuneDataModuleConfig, name="frangieh_finetune")
+datamodule_store(PapalexiFinetuneDataModuleConfig, name="papalexi_finetune")
 
 wandb_store = store(group="cfg/wandb")
 wandb_store(WandBConfig, name="base")
 
 job_store = store(group="cfg/job")
 job_store(GPUJobConfig, name="gpu")
+job_store(MultiGPUJobConfig, name="multi_gpu")
 job_store(CPUJobConfig, name="cpu")
 job_store(SweepMethodsSCMConfig, name="methods_scm")
-job_store(SweepMapPFNSCMConfig, name="map_pfn_scm")
 job_store(SweepMethodsSergioConfig, name="methods_sergio")
 job_store(SweepMapPFNSergioConfig, name="map_pfn_sergio")
-job_store(SweepCondOTSCMConfig, name="condot_scm")
-job_store(SweepMetaFMSCMConfig, name="metafm_scm")

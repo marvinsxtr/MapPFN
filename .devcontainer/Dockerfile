@@ -1,11 +1,15 @@
-FROM --platform=linux/amd64 python:3.12-slim AS linux-base
+FROM python:3.12-slim AS linux-base
+
+ARG TARGETARCH
 
 # Utilities
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends build-essential \
-    sudo curl git htop less rsync screen vim nano wget ca-certificates openssh-client zsh procps psmisc
+    sudo curl git htop less rsync screen vim nano wget ca-certificates openssh-client zsh procps psmisc \
+    iptables ipset iproute2 dnsutils aggregate jq gfortran pkg-config
 
 # Download and install VS Code Server CLI
-RUN wget -O /tmp/vscode-server-cli.tar.gz "https://update.code.visualstudio.com/latest/cli-linux-x64/stable" && \
+RUN ARCH="$TARGETARCH" && [ "$ARCH" = "amd64" ] && ARCH="x64"; \
+    wget -O /tmp/vscode-server-cli.tar.gz "https://update.code.visualstudio.com/latest/cli-linux-${ARCH}/stable" && \
     mkdir -p /usr/local/bin && \
     tar -xf /tmp/vscode-server-cli.tar.gz -C /usr/local/bin && \
     rm /tmp/vscode-server-cli.tar.gz
@@ -16,9 +20,11 @@ RUN COMMANDS="sacct sacctmgr salloc sattach sbatch sbcast scancel scontrol sdiag
     && echo 'ssh $USER@$SLURM_CLUSTER_NAME -t "cd $PWD; . ~/.zshrc 2>/dev/null || . ~/.bashrc 2>/dev/null; bash -lc '\'$CMD \$@\''"' >> "/usr/local/bin/$CMD" \
     && chmod +x "/usr/local/bin/$CMD"; done
 
+# Non-root user
+RUN useradd -m -s /bin/bash devuser
+
 FROM linux-base AS python-base
 
-# Workdir
 WORKDIR /srv/repo
 
 # Environment variables
@@ -30,13 +36,15 @@ ENV UV_PYTHON=python3.12
 ENV PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
 ENV PYTHONPATH="/srv/repo:$PYTHONPATH"
 # See https://github.com/jax-ml/jax/issues/29260
-ENV LD_LIBRARY_PATH=/venv/lib/python3.12/site-packages/nvidia/cuda_nvrtc/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH="/venv/lib/python3.12/site-packages/nvidia/cuda_nvrtc/lib:$LD_LIBRARY_PATH"
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.6.6 /uv /usr/local/bin/uv
+RUN mkdir -p /venv && chown devuser:devuser /venv
 
-# Environment
-RUN --mount=type=cache,target=/root/.cache/uv \
+USER devuser
+
+RUN --mount=type=cache,target=/home/devuser/.cache/uv,uid=1000 \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --all-groups

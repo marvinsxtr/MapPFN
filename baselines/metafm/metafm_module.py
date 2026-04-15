@@ -31,7 +31,7 @@ class MetaFMModule(pl.LightningModule):
         num_treat_conditions: int = None,
         num_cell_conditions: int = None,
         base: str = "source",
-        integrate_time_steps: int = 500,
+        integrate_time_steps: int = 100,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -384,3 +384,7 @@ class MetaFMModule(pl.LightningModule):
             BatchKeys.CONTEXT_ID: np.asarray(batch[BatchKeys.CONTEXT_ID]),
             BatchKeys.TREATMENT_ID: np.asarray(batch[BatchKeys.TREATMENT_ID]),
         }
+
+    def predict_step(self, batch, batch_idx):
+        """Transport samples and return predictions with metadata."""
+        return self.test_step(batch, batch_idx)

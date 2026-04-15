@@ -2,13 +2,33 @@ from collections.abc import Callable
 from functools import partial
 
 import h5py
-from hydra_zen import instantiate, store, to_yaml, zen
+from hydra_zen import instantiate, save_as_yaml, store, to_yaml, zen
 from hydra_zen.third_party.pydantic import pydantic_parser
 from ml_project_template.utils import ConfigKeys, get_output_dir, logger
 from ml_project_template.wandb import WandBRun
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 import wandb
+
+
+def configure_dataset(config: DictConfig) -> None:
+    """Read dataset metadata and set input dimension and commit hashes in the config."""
+    with h5py.File(config.datamodule.dataset_path, "r") as f:
+        num_vars = f["X"].shape[1]
+        commit_hash = f["uns"]["commit_hash"][()].decode("utf-8")
+
+    prior_commit_hash = None
+    prior_dataset_path = config.datamodule.get("prior_dataset_path", None)
+    if prior_dataset_path is not None:
+        with h5py.File(prior_dataset_path, "r") as f:
+            prior_commit_hash = f["uns"]["commit_hash"][()].decode("utf-8")
+
+    with open_dict(config):
+        config.globals.in_dim = num_vars
+        config.globals.data_commit_hash = commit_hash
+        config.globals.prior_data_commit_hash = prior_commit_hash
+
+    logger.info(f"Set input dimension to {num_vars} based on dataset.")
 
 
 def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = None, verbose: bool = False) -> None:
@@ -32,15 +52,7 @@ def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = No
         logger.warning("No seed was configured! Run may not be reproducible.")
 
     if config.get("datamodule") is not None:
-        with h5py.File(config.datamodule.dataset_path, "r") as f:
-            num_vars = f["X"].shape[1]
-            commit_hash = f["uns"]["commit_hash"][()].decode("utf-8")
-
-        with open_dict(config):
-            config.globals.in_dim = num_vars
-            config.globals.data_commit_hash = commit_hash
-
-        logger.info(f"Set input dimension to {num_vars} based on dataset.")
+        configure_dataset(config)
 
     if config.get(ConfigKeys.JOB, None) is not None:
         return
@@ -53,6 +65,8 @@ def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = No
     output_path = get_output_dir()
     if verbose:
         logger.info(f"Saving outputs in {output_path}")
+
+    save_as_yaml(root_config, output_path / ".hydra/zen_config.yaml")
 
     if (wandb_config := config.get(ConfigKeys.WANDB)) is not None:
         wandb_run: WandBRun = instantiate(wandb_config)

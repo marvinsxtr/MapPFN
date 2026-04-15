@@ -1,4 +1,3 @@
 *
-!/Dockerfile
 !/pyproject.toml
 !/uv.lock
