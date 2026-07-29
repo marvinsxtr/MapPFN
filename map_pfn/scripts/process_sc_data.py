@@ -9,7 +9,7 @@ import pandas as pd
 import scanpy as sc
 from pertpy.data import frangieh_2021_rna, papalexi_2021
 
-from map_pfn.data.utils import ColumnNames, Values, assign_split
+from map_pfn.data.utils import ColumnNames, SplitNames, Values, assign_split
 from map_pfn.utils.helpers import git_commit_hash
 from map_pfn.utils.logging import logger
 
@@ -57,21 +57,23 @@ def load_dataset(dataset: DatasetName) -> tuple[ad.AnnData, list[str]]:
 
 
 def _rank_genes(adata: ad.AnnData) -> pd.Series:
-    """Normalize, rank genes by differential expression, and return scores."""
-    sc.pp.normalize_total(adata)
-    sc.pp.log1p(adata)
+    """Rank genes by differential expression on training conditions, and return scores."""
+    train_adata = adata[adata.obs[ColumnNames.SPLIT].isin([SplitNames.TRAIN, SplitNames.CONTROL])].copy()
+    train_adata.obs[ColumnNames.TREATMENT] = (
+        train_adata.obs[ColumnNames.TREATMENT].astype("category").cat.remove_unused_categories()
+    )
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         sc.tl.rank_genes_groups(
-            adata,
+            train_adata,
             groupby=ColumnNames.TREATMENT,
             reference=Values.CONTROL,
-            n_genes=adata.n_vars,
+            n_genes=train_adata.n_vars,
             rankby_abs=True,
         )
 
-    rank_df = sc.get.rank_genes_groups_df(adata, group=None)
+    rank_df = sc.get.rank_genes_groups_df(train_adata, group=None)
     return rank_df.groupby("names")["scores"].max()
 
 
@@ -149,6 +151,11 @@ def process_sc_data(
     keep_treatments = counts[counts >= min_samples].index
     adata = adata[adata.obs[ColumnNames.TREATMENT].isin(keep_treatments)].copy()
 
+    sc.pp.normalize_total(adata)
+    sc.pp.log1p(adata)
+
+    adata = assign_split(adata, seed=seed)
+
     if required_genes:
         adata = _select_genes_with_required(adata, required_genes, n_top_genes)
     else:
@@ -160,7 +167,6 @@ def process_sc_data(
     adata.X = adata.X.toarray().astype(np.float32)
     adata.uns["commit_hash"] = git_commit_hash()
 
-    adata = assign_split(adata, seed=seed)
     adata.write_h5ad(file_path)
     logger.info(f"Saved processed dataset to {file_path}")
 
