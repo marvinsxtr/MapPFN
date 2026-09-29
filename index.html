@@ -164,44 +164,15 @@
               <img src="static/images/logo_charite.svg" alt="Charité" style="width: 120px;">
             </div>
 
-            <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.75rem 2rem; margin: 1rem 0 1.5rem 0;">
-              <a href="https://genai-in-genomics.github.io/" target="_blank" style="color: #333 !important; font-weight: 600; text-decoration: none; font-size: 0.95rem; white-space: nowrap;">
-                <i class="fas fa-award"></i> Accepted at Gen<sup>2</sup>
-              </a>
-              <a href="https://mlgenx.github.io/" target="_blank" style="color: #333 !important; font-weight: 600; text-decoration: none; font-size: 0.95rem; white-space: nowrap;">
-                <i class="fas fa-award"></i> Accepted at MLGenX
-              </a>
-            </div>
-
             <div class="column has-text-centered">
               <div class="publication-links">
-                <span class="link-block">
-                  <a href="https://arxiv.org/pdf/2601.21092.pdf" target="_blank"
-                  class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon">
-                    <i class="fas fa-file-pdf"></i>
-                  </span>
-                  <span>Paper</span>
-                  </a>
-                </span>
-
                 <span class="link-block">
                   <a href="https://arxiv.org/abs/2601.21092" target="_blank"
                   class="external-link button is-normal is-rounded is-dark">
                   <span class="icon">
-                    <i class="ai ai-arxiv"></i>
+                    <i class="fas fa-file-alt"></i>
                   </span>
-                  <span>arXiv</span>
-                  </a>
-                </span>
-
-                <span class="link-block">
-                  <a href="static/poster.pdf" target="_blank"
-                  class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon">
-                    <i class="fas fa-image"></i>
-                  </span>
-                  <span>Poster</span>
+                  <span>Paper</span>
                   </a>
                 </span>
 
@@ -242,19 +213,6 @@
     </div>
   </section>
 
-  <!-- Teaser -->
-  <section class="hero teaser">
-    <div class="container is-max-desktop">
-      <div class="hero-body" style="padding-top: 0; padding-bottom: 2rem;">
-        <div style="background-color: #e8edf3; border-radius: 12px; padding: 1.5rem 2.5rem; max-width: 800px; margin: 0 auto;">
-          <p style="color: #1e3a5f; font-size: 1.4rem; font-weight: 700; line-height: 1.4; text-align: center; margin: 0;">
-            How to build virtual cell foundation models that adapt to unseen biological contexts?
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Abstract -->
   <section class="section hero is-light">
     <div class="container is-max-desktop">
@@ -263,7 +221,7 @@
           <h2 class="title is-3">Abstract</h2>
           <div class="content has-text-justified">
             <p>
-              Planning effective interventions in biological systems requires treatment-effect models that adapt to unseen biological contexts by identifying their specific underlying mechanisms. Yet single-cell perturbation datasets span only a handful of biological contexts, and existing methods cannot leverage new interventional evidence at inference time to adapt beyond their training data. To meta-learn a perturbation effect estimator, we present MapPFN, a prior-data fitted network (PFN) pre-trained on synthetic data generated from a prior over causal perturbations. Given a set of experiments, MapPFN uses in-context learning to predict post-perturbation distributions. Pre-trained on <em>in silico</em> gene knockouts alone, MapPFN identifies differentially expressed genes on par with models trained on real single-cell data. Fine-tuned, it consistently outperforms baselines across downstream datasets.
+              Planning effective interventions in biological systems requires treatment-effect models that adapt to unseen biological contexts by identifying their specific underlying mechanisms. Yet single-cell perturbation datasets span only a handful of biological contexts, and existing methods cannot leverage new interventional evidence at inference time to adapt beyond their training data. To meta-learn a perturbation effect estimator, we present MapPFN, a prior-data fitted network (PFN) pre-trained on a synthetic biological prior with causal interventions, decoupling pre-training from limited wet-lab data. Unlike existing methods, MapPFN uses in-context learning to map a sequence of experiments to a post-perturbation distribution, enabling a single pre-trained model to adapt to new datasets and arbitrary gene sets at inference time. Zero-shot, MapPFN identifies differentially expressed genes on par with models trained on real single-cell data, and fine-tuning further improves predictions across biological contexts.
             </p>
           </div>
         </div>
@@ -333,7 +291,7 @@
 
       <div class="result-figure" style="margin-bottom: 2rem;">
         <img src="static/images/overview_poster.svg" alt="MapPFN overview" class="overview-figure" style="max-width: 80%; width: 80%; height: auto;" loading="eager">
-        <p class="has-text-centered is-size-6 has-text-grey"><strong>MapPFN overview.</strong> During pre-training, synthetic causal models are drawn to generate observational and interventional distributions. MapPFN meta-learns to map between pre- and post-perturbation distributions across many causal structures. At inference, it predicts cell-level post-perturbation distributions in one forward pass through amortized inference.</p>
+        <p class="has-text-centered is-size-6 has-text-grey"><strong>MapPFN overview.</strong> During pre-training, synthetic causal models are drawn to generate observational and interventional distributions. MapPFN meta-learns to map between pre- and post-perturbation distributions across many causal structures. At inference, it predicts cell-level post-perturbation distributions in one step through amortized inference.</p>
       </div>
 
       <div class="method-step">
@@ -342,232 +300,9 @@
           <ul>
             <li><strong>Preferential attachment</strong> gene regulatory network (GRN) generator with sparse, directed, modular graphs</li>
             <li>Simulation of <strong>gene expression dynamics</strong> and <strong><em>in silico</em> knockouts</strong> via stochastic differential equations (SDEs)</li>
-            <li><strong>Counterfactual (paired)</strong> prior improves identifiability and downstream performance</li>
+            <li><strong>Counterfactual</strong> prior improves downstream performance</li>
           </ul>
         </div>
-        <div class="result-figure">
-          <img src="static/images/convergence_plot.svg" alt="Paired vs unpaired training convergence" loading="lazy">
-          <p class="has-text-centered is-size-6 has-text-grey">Training convergence: paired vs. unpaired prior.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Benchmark Results -->
-  <section class="section">
-    <div class="container is-max-desktop">
-      <h2 class="title is-3 has-text-centered">Benchmark Results</h2>
-
-      <div class="content has-text-justified">
-        <p>
-          <strong>A single pre-trained MapPFN adapts across datasets.</strong> Zero-shot, it recovers differentially expressed genes on par with baselines trained on real data.
-          <span class="has-text-grey is-size-7">MMD &times;10<sup>&minus;3</sup>. Mean &plusmn; std over 10 seeds.</span>
-        </p>
-      </div>
-
-      <div style="overflow-x: auto;">
-        <table class="table is-hoverable is-fullwidth" style="font-size: 0.95rem;">
-          <thead>
-            <tr>
-              <th>Cell Line</th>
-              <th>Method</th>
-              <th class="has-text-centered">MMD &darr;</th>
-              <th class="has-text-centered">RMSE &darr;</th>
-              <th class="has-text-centered">PDS &darr;</th>
-              <th class="has-text-centered">AUPRC &uarr;</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td rowspan="7" style="vertical-align: top; font-weight: 600;">Melanoma</td>
-              <td>CPA</td>
-              <td class="has-text-centered">140.09 <span class="has-text-grey-light is-size-7">&plusmn;0.35</span></td>
-              <td class="has-text-centered">0.13 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.49 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.04 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-            </tr>
-            <tr>
-              <td>CondOT</td>
-              <td class="has-text-centered"><strong>7.11</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.12</span></td>
-              <td class="has-text-centered">0.10 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.06 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.34 <span class="has-text-grey-light is-size-7">&plusmn;0.05</span></td>
-            </tr>
-            <tr>
-              <td>MFM</td>
-              <td class="has-text-centered">7.28 <span class="has-text-grey-light is-size-7">&plusmn;0.13</span></td>
-              <td class="has-text-centered">0.10 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.09 <span class="has-text-grey-light is-size-7">&plusmn;0.02</span></td>
-              <td class="has-text-centered">0.28 <span class="has-text-grey-light is-size-7">&plusmn;0.04</span></td>
-            </tr>
-            <tr>
-              <td>CellFlow</td>
-              <td class="has-text-centered"><strong>7.16</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.17</span></td>
-              <td class="has-text-centered">0.10 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.41 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.10 <span class="has-text-grey-light is-size-7">&plusmn;0.02</span></td>
-            </tr>
-            <tr>
-              <td>STATE</td>
-              <td class="has-text-centered">7.82 <span class="has-text-grey-light is-size-7">&plusmn;0.09</span></td>
-              <td class="has-text-centered"><strong>0.08</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.07 <span class="has-text-grey-light is-size-7">&plusmn;0.02</span></td>
-              <td class="has-text-centered">0.33 <span class="has-text-grey-light is-size-7">&plusmn;0.04</span></td>
-            </tr>
-            <tr>
-              <td><strong>MapPFN</strong> (pre-trained)</td>
-              <td class="has-text-centered">10.07 <span class="has-text-grey-light is-size-7">&plusmn;0.19</span></td>
-              <td class="has-text-centered">0.13 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.17 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.34 <span class="has-text-grey-light is-size-7">&plusmn;0.02</span></td>
-            </tr>
-            <tr>
-              <td><strong>MapPFN</strong> (fine-tuned)</td>
-              <td class="has-text-centered">7.84 <span class="has-text-grey-light is-size-7">&plusmn;0.14</span></td>
-              <td class="has-text-centered">0.10 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered"><strong>0.03</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered"><strong>0.38</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.03</span></td>
-            </tr>
-            <tr style="border-top: 2px solid #dbdbdb;">
-              <td rowspan="7" style="vertical-align: top; font-weight: 600;">Leukemia</td>
-              <td>CPA</td>
-              <td class="has-text-centered">78.74 <span class="has-text-grey-light is-size-7">&plusmn;1.27</span></td>
-              <td class="has-text-centered">0.17 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.50 <span class="has-text-grey-light is-size-7">&plusmn;0.02</span></td>
-              <td class="has-text-centered">0.15 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-            <tr>
-              <td>CondOT</td>
-              <td class="has-text-centered">26.51 <span class="has-text-grey-light is-size-7">&plusmn;0.68</span></td>
-              <td class="has-text-centered">0.27 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.54 <span class="has-text-grey-light is-size-7">&plusmn;0.04</span></td>
-              <td class="has-text-centered">0.14 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-            <tr>
-              <td>MFM</td>
-              <td class="has-text-centered">105.64 <span class="has-text-grey-light is-size-7">&plusmn;0.73</span></td>
-              <td class="has-text-centered">0.71 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.51 <span class="has-text-grey-light is-size-7">&plusmn;0.02</span></td>
-              <td class="has-text-centered">0.16 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-            <tr>
-              <td>CellFlow</td>
-              <td class="has-text-centered">14.55 <span class="has-text-grey-light is-size-7">&plusmn;0.46</span></td>
-              <td class="has-text-centered">0.17 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.50 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.16 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-            <tr>
-              <td>STATE</td>
-              <td class="has-text-centered">15.28 <span class="has-text-grey-light is-size-7">&plusmn;0.44</span></td>
-              <td class="has-text-centered">0.17 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.47 <span class="has-text-grey-light is-size-7">&plusmn;0.03</span></td>
-              <td class="has-text-centered"><strong>0.17</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-            <tr>
-              <td><strong>MapPFN</strong> (pre-trained)</td>
-              <td class="has-text-centered">191.88 <span class="has-text-grey-light is-size-7">&plusmn;1.46</span></td>
-              <td class="has-text-centered">0.78 <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered">0.49 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-              <td class="has-text-centered">0.16 <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-            <tr>
-              <td><strong>MapPFN</strong> (fine-tuned)</td>
-              <td class="has-text-centered"><strong>12.24</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.58</span></td>
-              <td class="has-text-centered"><strong>0.15</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.00</span></td>
-              <td class="has-text-centered"><strong>0.42</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.03</span></td>
-              <td class="has-text-centered"><strong>0.18</strong> <span class="has-text-grey-light is-size-7">&plusmn;0.01</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- Test-Time Adaptation -->
-  <section class="section hero is-light">
-    <div class="container is-max-desktop">
-      <h2 class="title is-3 has-text-centered">Test-Time Adaptation</h2>
-      <div class="content has-text-justified">
-        <p>
-          Predictions <strong>improve beyond the number of cells</strong> seen during pre-training. MapPFN <strong>scales to larger gene sets</strong> at inference time through test-time augmentation.
-        </p>
-      </div>
-      <div class="columns is-centered">
-        <div class="column is-half">
-          <div class="result-figure">
-            <img src="static/images/scaling_cells.svg" alt="Cell scaling" loading="lazy">
-            <p class="has-text-centered is-size-6 has-text-grey">Predictions improve beyond the number of cells seen during pre-training.</p>
-          </div>
-        </div>
-        <div class="column is-half">
-          <div class="result-figure">
-            <img src="static/images/gene_subset_tta.svg" alt="Gene subset TTA" loading="lazy">
-            <p class="has-text-centered is-size-6 has-text-grey">Scales to larger gene sets at inference time through test-time augmentation.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Ablations -->
-  <section class="section">
-    <div class="container is-max-desktop">
-      <h2 class="title is-3 has-text-centered">Ablations</h2>
-
-      <div class="content has-text-justified">
-        <p>
-          Both <strong>interventional context</strong> and <strong>paired prior</strong> are critical.
-          <span class="has-text-grey is-size-7">Melanoma. MMD &times;10<sup>&minus;3</sup>.</span>
-        </p>
-      </div>
-
-      <div style="overflow-x: auto;">
-        <table class="table is-hoverable is-fullwidth" style="font-size: 0.95rem;">
-          <thead>
-            <tr>
-              <th>Configuration</th>
-              <th class="has-text-centered">MMD &darr;</th>
-              <th class="has-text-centered">RMSE &darr;</th>
-              <th class="has-text-centered">PDS &darr;</th>
-              <th class="has-text-centered">AUPRC &uarr;</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>MapPFN</strong></td>
-              <td class="has-text-centered"><strong>10.07</strong></td>
-              <td class="has-text-centered"><strong>0.13</strong></td>
-              <td class="has-text-centered"><strong>0.17</strong></td>
-              <td class="has-text-centered"><strong>0.34</strong></td>
-            </tr>
-            <tr>
-              <td>&minus; paired prior</td>
-              <td class="has-text-centered">21.84</td>
-              <td class="has-text-centered">0.23</td>
-              <td class="has-text-centered">0.20</td>
-              <td class="has-text-centered">0.21</td>
-            </tr>
-            <tr>
-              <td>&minus; interventional context</td>
-              <td class="has-text-centered">15.88</td>
-              <td class="has-text-centered">0.20</td>
-              <td class="has-text-centered">0.20</td>
-              <td class="has-text-centered">0.13</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- Conclusion -->
-  <section class="section hero is-light">
-    <div class="container is-max-desktop">
-      <div style="background-color: #e8edf3; border-radius: 12px; padding: 2rem 2.5rem; max-width: 800px; margin: 0 auto;">
-        <p style="color: #1e3a5f; font-size: 1.3rem; font-weight: 700; line-height: 1.4; text-align: center; margin: 0;">
-          Meta-learning on synthetic biological priors enables context-adaptive virtual cell models through in-context learning.
-        </p>
       </div>
     </div>
   </section>
@@ -634,11 +369,16 @@
           <span class="copy-text">Copy</span>
         </button>
       </div>
-      <pre id="bibtex-code"><code>@article{sextro2026mappfn,
-  title   = {{MapPFN}: Learning Causal Perturbation Maps in Context},
-  author  = {Sextro, Marvin and K\l{}os, Weronika and Dernbach, Gabriel},
-  journal = {arXiv preprint arXiv:2601.21092},
-  year    = {2026}
+      <pre id="bibtex-code"><code>@inproceedings{sextro2026mappfn,
+  title         = {Map{PFN}: Learning Causal Perturbation Maps in Context},
+  author        = {Marvin Sextro and Weronika K{\l}os and Gabriel Dernbach},
+  booktitle     = {Advances in Neural Information Processing Systems},
+  volume        = {39},
+  year          = {2026},
+  eprint        = {2601.21092},
+  archiveprefix = {arXiv},
+  primaryclass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2601.21092}
 }</code></pre>
     </div>
   </section>
