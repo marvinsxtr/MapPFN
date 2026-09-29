@@ -11,12 +11,12 @@
 
 <div align="center">
   <img src="assets/overview.png" width="80%">
-  <p><em><strong>MapPFN overview.</strong> During pre-training, synthetic causal models are drawn to generate observational and interventional distributions. MapPFN meta-learns to map between pre- and post-perturbation distributions across many causal structures. At inference, it predicts cell-level post-perturbation distributions in one forward pass through amortized inference.</em></p>
+  <p><em><strong>MapPFN overview.</strong> During pre-training, synthetic causal models are drawn to generate observational and interventional distributions. MapPFN meta-learns to map between pre- and post-perturbation distributions across many causal structures. At inference, it predicts cell-level post-perturbation distributions in one step through amortized inference.</em></p>
 </div>
 
 ## Abstract
 
-Planning effective interventions in biological systems requires treatment-effect models that adapt to unseen biological contexts by identifying their specific underlying mechanisms. Yet single-cell perturbation datasets span only a handful of biological contexts, and existing methods cannot leverage new interventional evidence at inference time to adapt beyond their training data. To meta-learn a perturbation effect estimator, we present MapPFN, a prior-data fitted network (PFN) pre-trained on synthetic data generated from a prior over causal perturbations. Given a set of experiments, MapPFN uses in-context learning to predict post-perturbation distributions. Pre-trained on *in silico* gene knockouts alone, MapPFN identifies differentially expressed genes on par with models trained on real single-cell data. Fine-tuned, it consistently outperforms baselines across downstream datasets.
+Planning effective interventions in biological systems requires treatment-effect models that adapt to unseen biological contexts by identifying their specific underlying mechanisms. Yet single-cell perturbation datasets span only a handful of biological contexts, and existing methods cannot leverage new interventional evidence at inference time to adapt beyond their training data. To meta-learn a perturbation effect estimator, we present MapPFN, a prior-data fitted network (PFN) pre-trained on a synthetic biological prior with causal interventions, decoupling pre-training from limited wet-lab data. Unlike existing methods, MapPFN uses in-context learning to map a sequence of experiments to a post-perturbation distribution, enabling a single pre-trained model to adapt to new datasets and arbitrary gene sets at inference time. Zero-shot, MapPFN identifies differentially expressed genes on par with models trained on real single-cell data, and fine-tuning further improves predictions across biological contexts.
 
 ## Setup
 
@@ -141,11 +141,12 @@ MapPFN/
 ## Citation
 
 ```bibtex
-@article{sextro2026mappfn,
-  title   = {{MapPFN}: Learning Causal Perturbation Maps in Context},
-  author  = {Sextro, Marvin and K\l{}os, Weronika and Dernbach, Gabriel},
-  journal = {arXiv preprint arXiv:2601.21092},
-  year    = {2026}
+@inproceedings{sextro2026mappfn,
+  title     = {Map{PFN}: Learning Causal Perturbation Maps in Context},
+  author    = {Marvin Sextro and Weronika K{\l}os and Gabriel Dernbach},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {39},
+  year      = {2026}
 }
 ```
 
