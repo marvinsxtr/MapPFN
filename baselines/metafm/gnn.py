@@ -102,7 +102,7 @@ class GlobalGNN(nn.Module):
                     x = torch.cat([x, cond_i], dim=-1)
                     
                 data_list.append(
-                    torch_geometric.data.Data(x=x.cuda(), edge_index=edge_index.cuda())
+                    torch_geometric.data.Data(x=x, edge_index=edge_index.to(x.device))
                 )
             
             # Create a Batch object from the list of Data objects
@@ -112,7 +112,7 @@ class GlobalGNN(nn.Module):
         else:
             edge_index = torch_geometric.nn.pool.knn_graph(
                 x=source_samples.cpu(), k=self.knn_k
-            ).cuda()
+            ).to(source_samples.device)
             z = source_samples
             
         if cond is not None and len(source_samples.shape) == 2:

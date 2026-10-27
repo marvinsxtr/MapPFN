@@ -12,7 +12,14 @@ import wandb
 
 
 def configure_dataset(config: DictConfig) -> None:
-    """Read dataset metadata and set input dimension and commit hashes in the config."""
+    """Read dataset metadata and set input dimension and commit hashes in the config.
+
+    Args:
+        config: Run config mutated in place.
+    """
+    if config.datamodule.get("dataset_path") is None:
+        return
+
     with h5py.File(config.datamodule.dataset_path, "r") as f:
         num_vars = f["X"].shape[1]
         commit_hash = f["uns"]["commit_hash"][()].decode("utf-8")
@@ -66,11 +73,12 @@ def pre_call(root_config: DictConfig, seed_fn: Callable[[int], None] | None = No
     if verbose:
         logger.info(f"Saving outputs in {output_path}")
 
+    (output_path / ".hydra").mkdir(parents=True, exist_ok=True)
     save_as_yaml(root_config, output_path / ".hydra/zen_config.yaml")
 
     if (wandb_config := config.get(ConfigKeys.WANDB)) is not None:
         wandb_run: WandBRun = instantiate(wandb_config)
-        wandb_run.run.config.update(OmegaConf.to_container(root_config))
+        wandb_run.run.config.update(OmegaConf.to_container(root_config), allow_val_change=True)
         wandb.save(output_path / ".hydra/*", base_path=output_path, policy="now")
 
 

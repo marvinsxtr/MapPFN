@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from ml_project_template.utils import get_output_dir
 from ml_project_template.wandb import WandBConfig
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 import wandb
 
@@ -67,13 +67,17 @@ def download_file(run_path: str, filename: str) -> Iterator[Path]:
 def register_resolvers() -> None:
     """Registers globals and eval resolvers."""
 
-    def _globals_resolver(ref: str) -> str:
-        """Resolves references to global parameters.
+    def _globals_resolver(ref: str, *, _root_: DictConfig) -> object:
+        """Resolve a reference to a global parameter to its concrete value.
 
         Args:
-            ref: Reference to resolve. Must be a dot-separated string.
+            ref: Global parameter name under ``cfg.globals`` (e.g. ``in_dim``).
+            _root_: Root config, injected by OmegaConf.
+
+        Returns:
+            The resolved value of ``cfg.globals.<ref>``.
         """
-        return f"${{cfg.globals.{ref}}}"
+        return OmegaConf.select(_root_, f"cfg.globals.{ref}", throw_on_missing=True)
 
     OmegaConf.register_new_resolver("globals", _globals_resolver, replace=True)
     OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -103,7 +107,7 @@ def configure_jax() -> None:
     os.environ["XLA_FLAGS"] = "--xla_cpu_use_thunk_runtime=false"
 
     if platform.machine() == "aarch64":
-        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.4"
+        os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.4")
 
     if any("job" in argument for argument in sys.argv):
         os.environ["JAX_PLATFORMS"] = "cpu"

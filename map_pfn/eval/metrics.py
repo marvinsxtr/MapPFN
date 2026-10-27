@@ -134,6 +134,19 @@ def wasserstein_distance(
     )[0]
 
 
+def truncate_to_tf32(x: Float[Array, "..."]) -> Float[Array, "..."]:
+    """Truncate float32 values to the 10 mantissa bits of TF32.
+
+    Args:
+        x: Float32 array.
+
+    Returns:
+        The array with the 13 lowest mantissa bits cleared.
+    """
+    bits = jax.lax.bitcast_convert_type(x.astype(jnp.float32), jnp.uint32)
+    return jax.lax.bitcast_convert_type(bits & jnp.uint32(0xFFFFE000), jnp.float32)
+
+
 @jax.jit
 def pairwise_squared_distances(x: Float[Array, "n dim"], y: Float[Array, "m dim"]) -> Float[Array, "n m"]:
     """Compute pairwise squared Euclidean distances efficiently.
@@ -147,7 +160,9 @@ def pairwise_squared_distances(x: Float[Array, "n dim"], y: Float[Array, "m dim"
     """
     xx = jnp.sum(x**2, axis=1)
     yy = jnp.sum(y**2, axis=1)
-    xy = x @ y.T
+    # The published numbers were computed on GPUs whose default TF32 matmuls truncate the inputs; truncate explicitly
+    # and multiply at full precision so every device reproduces them.
+    xy = jnp.matmul(truncate_to_tf32(x), truncate_to_tf32(y).T, precision=jax.lax.Precision.HIGHEST)
     return xx[:, None] + yy - 2 * xy
 
 

@@ -1,10 +1,12 @@
 from hydra_zen import builds
 from ml_project_template.wandb import WandBRun
 
-from map_pfn.utils.run import Job, SweepJob, TrainingSlurmParams
+from ml_project_template.runs import Job, SlurmParams, SweepJob
+
+IMAGE = "${oc.env:JOB_IMAGE,oras://ghcr.io/marvinsxtr/mappfn:latest-sif}"
 
 MediumGPURunSlurmConfig = builds(
-    TrainingSlurmParams,
+    SlurmParams,
     partition="gpu-2d",
     time_hours=48,
     nodes=1,
@@ -14,25 +16,11 @@ MediumGPURunSlurmConfig = builds(
     gpus_per_node=1,
     mem_gb=256,
     constraint="80gb|h100",
-    exclude="head074,head021",
-)
-
-MediumMultiGPURunSlurmConfig = builds(
-    TrainingSlurmParams,
-    partition="gpu-2d",
-    time_hours=48,
-    nodes=1,
-    tasks_per_node=1,
-    cpus_per_task=16,
-    gpus_per_task=4,
-    gpus_per_node=4,
-    mem_gb=256,
-    constraint="80gb|h100",
-    exclude="head074,head021",
+    exclude="head021,head023,head025,head074",
 )
 
 MediumCPURunSlurmConfig = builds(
-    TrainingSlurmParams,
+    SlurmParams,
     partition="cpu-2d",
     time_hours=48,
     nodes=1,
@@ -43,14 +31,17 @@ MediumCPURunSlurmConfig = builds(
     mem_gb=256,
 )
 
-WandBConfig = builds(WandBRun, group=None, mode="online")
+GPUTestRunSlurmConfig = MediumGPURunSlurmConfig(partition="gpu-2h", time_hours=2, cpus_per_task=8, mem_gb=64)
 
-GPUJobConfig = builds(Job, slurm_params=MediumGPURunSlurmConfig)
-MultiGPUJobConfig = builds(Job, slurm_params=MediumMultiGPURunSlurmConfig)
-CPUJobConfig = builds(Job, slurm_params=MediumCPURunSlurmConfig)
+WandBConfig = builds(WandBRun, group=None, mode="online", id=None, resume=None)
+
+GPUJobConfig = builds(Job, image=IMAGE, slurm_params=MediumGPURunSlurmConfig)
+CPUJobConfig = builds(Job, image=IMAGE, slurm_params=MediumCPURunSlurmConfig)
+GPUTestJobConfig = builds(Job, image=IMAGE, slurm_params=GPUTestRunSlurmConfig)
 
 SweepMethodsSCMConfig = builds(
     SweepJob,
+    image=IMAGE,
     slurm_params=MediumGPURunSlurmConfig,
     num_workers=3,
     parameters={
@@ -61,6 +52,7 @@ SweepMethodsSCMConfig = builds(
 
 SweepMethodsSergioConfig = builds(
     SweepJob,
+    image=IMAGE,
     slurm_params=MediumGPURunSlurmConfig,
     num_workers=4,
     parameters={
@@ -71,6 +63,7 @@ SweepMethodsSergioConfig = builds(
 
 SweepMapPFNSergioConfig = builds(
     SweepJob,
+    image=IMAGE,
     slurm_params=MediumGPURunSlurmConfig,
     num_workers=1,
     parameters={

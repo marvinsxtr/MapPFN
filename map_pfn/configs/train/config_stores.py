@@ -3,7 +3,7 @@ from hydra_zen import MISSING, builds, store
 from map_pfn.configs.run_config import (
     CPUJobConfig,
     GPUJobConfig,
-    MultiGPUJobConfig,
+    GPUTestJobConfig,
     SweepMapPFNSergioConfig,
     SweepMethodsSCMConfig,
     SweepMethodsSergioConfig,
@@ -60,7 +60,7 @@ wandb_store(WandBConfig, name="base")
 
 job_store = store(group="cfg/job")
 job_store(GPUJobConfig, name="gpu")
-job_store(MultiGPUJobConfig, name="multi_gpu")
+job_store(GPUTestJobConfig, name="gpu_test")
 job_store(CPUJobConfig, name="cpu")
 job_store(SweepMethodsSCMConfig, name="methods_scm")
 job_store(SweepMethodsSergioConfig, name="methods_sergio")

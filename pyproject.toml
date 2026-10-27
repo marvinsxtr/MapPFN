@@ -67,7 +67,7 @@ namespaces = true
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
-ml-project-template = { git = "https://github.com/marvinsxtr/ml-project-template.git", branch = "main" }
+ml-project-template = { git = "https://github.com/marvinsxtr/ml-project-template.git", rev = "e9645c162fd5" }
 diffrax = { git = "https://github.com/patrick-kidger/diffrax.git", branch = "main" }
 perturbench = { git = "https://github.com/marvinsxtr/perturbench.git", branch = "main" }
 torch-cluster = [

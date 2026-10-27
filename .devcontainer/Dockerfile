@@ -5,7 +5,7 @@ ARG TARGETARCH
 # Utilities
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends build-essential \
     sudo curl git htop less rsync screen vim nano wget ca-certificates openssh-client zsh procps psmisc \
-    iptables ipset iproute2 dnsutils aggregate jq gfortran pkg-config
+    jq gfortran pkg-config
 
 # Download and install VS Code Server CLI
 RUN ARCH="$TARGETARCH" && [ "$ARCH" = "amd64" ] && ARCH="x64"; \
@@ -33,7 +33,7 @@ ENV UV_PYTHON_INSTALL_DIR="/python"
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV UV_PYTHON=python3.12
-ENV PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
+ENV PATH="/home/devuser/.local/bin:$UV_PROJECT_ENVIRONMENT/bin:$PATH"
 ENV PYTHONPATH="/srv/repo:$PYTHONPATH"
 # See https://github.com/jax-ml/jax/issues/29260
 ENV LD_LIBRARY_PATH="/venv/lib/python3.12/site-packages/nvidia/cuda_nvrtc/lib:$LD_LIBRARY_PATH"
@@ -44,7 +44,14 @@ RUN mkdir -p /venv && chown devuser:devuser /venv
 
 USER devuser
 
+# Install Claude Code (native installer, per-user under ~/.local)
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
 RUN --mount=type=cache,target=/home/devuser/.cache/uv,uid=1000 \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --all-groups
+
+# Apptainer image that Slurm jobs submitted from this image run in
+ARG JOB_IMAGE
+ENV JOB_IMAGE=$JOB_IMAGE

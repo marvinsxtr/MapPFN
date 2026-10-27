@@ -16,7 +16,7 @@
 
 ## Abstract
 
-Planning effective interventions in biological systems requires treatment-effect models that adapt to unseen biological contexts by identifying their specific underlying mechanisms. Yet single-cell perturbation datasets span only a handful of biological contexts, and existing methods cannot leverage new interventional evidence at inference time to adapt beyond their training data. To meta-learn a perturbation effect estimator, we present MapPFN, a prior-data fitted network (PFN) pre-trained on a synthetic biological prior with causal interventions, decoupling pre-training from limited wet-lab data. Unlike existing methods, MapPFN uses in-context learning to map a sequence of experiments to a post-perturbation distribution, enabling a single pre-trained model to adapt to new datasets and arbitrary gene sets at inference time. Zero-shot, MapPFN identifies differentially expressed genes on par with models trained on real single-cell data, and fine-tuning further improves predictions across biological contexts.
+Planning effective interventions in biological systems requires treatment-effect models that adapt to unseen biological contexts by identifying their specific underlying mechanisms. Yet single-cell perturbation datasets span only a handful of biological contexts, and existing methods cannot leverage new interventional evidence at inference time to adapt beyond their training data. To meta-learn a perturbation effect estimator, we present MapPFN, a prior-data fitted network (PFN) pre-trained on a synthetic biological prior with causal interventions, decoupling pre-training from limited wet-lab data. Unlike existing methods, MapPFN uses in-context learning to map a sequence of experiments to a post-perturbation distribution, enabling a single pre-trained model to adapt to new datasets and gene sets. Our results show that combining synthetic pre-training with fine-tuning on real single-cell data improves perturbation predictions across biological contexts.
 
 ## Setup
 
@@ -52,21 +52,22 @@ WANDB_PROJECT=your_project_name
 
 Download pre-trained [weights](https://huggingface.co/marvinsxtr/MapPFN) and [datasets](https://huggingface.co/datasets/marvinsxtr/MapPFN) from Hugging Face:
 
-```python
-from huggingface_hub import hf_hub_download
-
-hf_hub_download("marvinsxtr/MapPFN", "model.ckpt", local_dir="checkpoints", repo_type="model")
-hf_hub_download("marvinsxtr/MapPFN", "frangieh.h5ad", local_dir="datasets/single_cell", repo_type="dataset")
-hf_hub_download("marvinsxtr/MapPFN", "papalexi.h5ad", local_dir="datasets/single_cell", repo_type="dataset")
-hf_hub_download("marvinsxtr/MapPFN", "sergio.h5ad", local_dir="datasets/synthetic", repo_type="dataset")
+```bash
+python -m map_pfn.scripts.download_data
 ```
+
+Add `--include-prior` to also download the synthetic prior (27 GB) used for pre-training and fine-tuning.
 
 <details>
 <summary>Preprocessing & generation</summary>
 
 Preprocess single-cell datasets:
 ```bash
-python map_pfn/scripts/process_sc_data.py
+for seed in 10 20 30 40 50; do
+  for dataset in frangieh papalexi; do
+    python -m map_pfn.scripts.process_sc_data --dataset $dataset --seed $seed
+  done
+done
 ```
 
 Generate synthetic datasets:
@@ -85,7 +86,7 @@ from map_pfn.eval.evaluate import load_model
 trainer, module, datamodule = load_model(
     method="map_pfn",
     checkpoint_path="checkpoints/model.ckpt",
-    dataset_path="datasets/single_cell/frangieh.h5ad",
+    dataset_path="datasets/single_cell/frangieh/split_10.h5ad",
 )
 preds = trainer.predict(module, datamodule=datamodule)
 ```
@@ -98,6 +99,7 @@ python map_pfn/scripts/train.py \
     cfg=map_pfn_rna \
     cfg/datamodule=frangieh_finetune \
     cfg.load_checkpoint=checkpoints/model.ckpt \
+    cfg.globals.num_steps=600000 \
     cfg.trainer.val_check_interval=500 \
     cfg.trainer.callbacks.2.max_steps=3000 \
     cfg/wandb=base

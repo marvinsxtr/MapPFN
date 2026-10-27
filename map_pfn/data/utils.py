@@ -60,10 +60,8 @@ class SplitNames:
     TRAIN: Final[str] = "train"
     VAL: Final[str] = "val"
     TEST: Final[str] = "test"
-
-    OTHER: Final[str] = "other"
     CONTROL: Final[str] = "control"
-    TEST_OTHER: Final[str] = "test_other"
+    TEST_OTHER: Final[str] = "test_other"  # deprecated
 
 
 def collate_fn(
@@ -154,18 +152,16 @@ def assign_split(
     holdout_context: str | None = None,
     seed: int = 42,
 ) -> ad.AnnData:
-    """Split AnnData into train/val/test with consistent test split across o.o.d./i.d. modes.
+    """Split AnnData into train/val/test at the condition (context + treatment) level.
 
-    Splitting is done at the condition (context + treatment) level.
-    The test split within the holdout context is identical in both modes.
-
-    o.o.d. mode: holdout context -> test/ignore, other contexts -> train/val
-    i.d. mode: holdout context -> test/train, other contexts -> train/val
+    Test conditions are held out from the holdout context; validation conditions come from the other
+    contexts (stratified by context), or from the remaining holdout-context conditions if there are none; every
+    other condition is train.
 
     Args:
         adata: The AnnData object containing the data.
-        val_share: Fraction of conditions for validation (in non-holdout contexts).
-        test_share: Fraction of conditions for test (in holdout context).
+        val_share: Fraction of the validation-pool conditions used for validation.
+        test_share: Fraction of the holdout-context conditions used for test.
         holdout_context: The context to hold out. If None, chooses the context with the most treatments.
         seed: Random seed for reproducibility.
 
@@ -177,33 +173,21 @@ def assign_split(
             adata.obs.groupby(ColumnNames.CONTEXT, observed=True)[ColumnNames.TREATMENT].nunique().idxmax()
         )
 
-    adata.obs[ColumnNames.SPLIT] = None
-
     control_mask = adata.obs[ColumnNames.TREATMENT] == Values.CONTROL
     holdout_mask = adata.obs[ColumnNames.CONTEXT] == holdout_context
-
     cond = adata.obs[[ColumnNames.CONTEXT, ColumnNames.TREATMENT]].apply(tuple, axis=1)
 
-    unique_cond = cond[~control_mask & ~holdout_mask].drop_duplicates()
     holdout_cond = cond[~control_mask & holdout_mask].drop_duplicates()
+    other_cond = cond[~control_mask & ~holdout_mask].drop_duplicates()
+    rest_cond, test_cond = train_test_split(holdout_cond, test_size=test_share, random_state=seed)
+    val_pool = other_cond if len(other_cond) else rest_cond
+    stratify = other_cond.apply(lambda c: c[0]) if len(other_cond) else None
+    _, val_cond = train_test_split(val_pool, test_size=val_share, random_state=seed, stratify=stratify)
 
-    other_cond, test_cond = train_test_split(holdout_cond, test_size=test_share, random_state=seed)
-
+    adata.obs[ColumnNames.SPLIT] = SplitNames.TRAIN
     adata.obs.loc[cond.isin(test_cond), ColumnNames.SPLIT] = SplitNames.TEST
+    adata.obs.loc[cond.isin(val_cond), ColumnNames.SPLIT] = SplitNames.VAL
     adata.obs.loc[control_mask, ColumnNames.SPLIT] = SplitNames.CONTROL
-
-    if len(unique_cond) > 0:
-        unique_contexts = unique_cond.apply(lambda x: x[0])
-        train_cond, val_cond = train_test_split(
-            unique_cond, test_size=val_share, random_state=seed, stratify=unique_contexts
-        )
-        adata.obs.loc[cond.isin(train_cond), ColumnNames.SPLIT] = SplitNames.TRAIN
-        adata.obs.loc[cond.isin(val_cond), ColumnNames.SPLIT] = SplitNames.VAL
-        adata.obs.loc[cond.isin(other_cond), ColumnNames.SPLIT] = SplitNames.TEST_OTHER
-    else:
-        train_cond, val_cond = train_test_split(other_cond, test_size=val_share, random_state=seed)
-        adata.obs.loc[cond.isin(train_cond), ColumnNames.SPLIT] = SplitNames.TRAIN
-        adata.obs.loc[cond.isin(val_cond), ColumnNames.SPLIT] = SplitNames.VAL
 
     adata.obs[ColumnNames.SPLIT] = adata.obs[ColumnNames.SPLIT].astype(
         CategoricalDtype(categories=[str(f.default) for f in fields(SplitNames)])
@@ -212,12 +196,11 @@ def assign_split(
     return adata
 
 
-def split_dataset(adata: ad.AnnData, ood: bool) -> tuple[ad.AnnData, ad.AnnData, ad.AnnData]:
+def split_dataset(adata: ad.AnnData) -> tuple[ad.AnnData, ad.AnnData, ad.AnnData]:
     """Split AnnData into training, validation, and test sets based on split column.
 
     Args:
         adata: The AnnData object containing the data with split column.
-        ood: If True, convert to o.o.d. split. If False, convert to i.d. split.
 
     Returns:
         A tuple of (train_adata, val_adata, test_adata).
@@ -225,13 +208,8 @@ def split_dataset(adata: ad.AnnData, ood: bool) -> tuple[ad.AnnData, ad.AnnData,
     if ColumnNames.SPLIT not in adata.obs.columns:
         raise ValueError(f"Column '{ColumnNames.SPLIT}' not found in adata.obs.")
 
-    n_contexts = adata.obs[ColumnNames.CONTEXT].nunique()
-    if ood and n_contexts < 2:
-        raise ValueError(f"OOD split requires at least 2 contexts, but only {n_contexts} found.")
-
-    adata.obs.loc[adata.obs[ColumnNames.SPLIT] == SplitNames.TEST_OTHER, ColumnNames.SPLIT] = (
-        SplitNames.OTHER if ood else SplitNames.TRAIN
-    )
+    # Backward compatibility: deprecated datasets have a test_other label that is assigned to train.
+    adata.obs.loc[adata.obs[ColumnNames.SPLIT] == SplitNames.TEST_OTHER, ColumnNames.SPLIT] = SplitNames.TRAIN
 
     train_adata = adata[adata.obs[ColumnNames.SPLIT].isin([SplitNames.TRAIN, SplitNames.CONTROL])].copy()
     val_adata = adata[adata.obs[ColumnNames.SPLIT].isin([SplitNames.VAL, SplitNames.CONTROL])].copy()

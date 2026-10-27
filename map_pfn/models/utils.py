@@ -168,4 +168,4 @@ def solve_ode(
         saveat=diffrax.SaveAt(ts=time_grid) if time_grid is not None else diffrax.SaveAt(t1=True),
     )
 
-    return solution.ys.squeeze() if time_grid is None else solution.ys
+    return solution.ys[0] if time_grid is None else solution.ys

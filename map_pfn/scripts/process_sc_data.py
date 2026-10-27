@@ -16,7 +16,7 @@ from map_pfn.utils.logging import logger
 DatasetName = Literal["frangieh", "papalexi"]
 
 
-def load_dataset(dataset: DatasetName) -> tuple[ad.AnnData, list[str]]:
+def load_dataset(dataset: DatasetName) -> tuple[ad.AnnData, list[str], str]:
     """Load dataset and rename columns to standard names.
 
     Args:
@@ -24,7 +24,8 @@ def load_dataset(dataset: DatasetName) -> tuple[ad.AnnData, list[str]]:
 
     Returns:
         Tuple of (AnnData object with standardized column names,
-        list of required gene names to include in the final gene set).
+        list of required gene names to include in the final gene set,
+        context held out for test).
     """
     loaders = {
         "frangieh": frangieh_2021_rna,
@@ -35,6 +36,7 @@ def load_dataset(dataset: DatasetName) -> tuple[ad.AnnData, list[str]]:
 
     adata = loaders[dataset]()
     if dataset == "frangieh":
+        holdout_context = "IFNγ"  # noqa: RUF001
         adata.obs = adata.obs.rename(
             columns={
                 "perturbation_2": ColumnNames.CONTEXT,
@@ -47,13 +49,14 @@ def load_dataset(dataset: DatasetName) -> tuple[ad.AnnData, list[str]]:
         adata.obs[ColumnNames.TREATMENT] = mdata.obs["gene_target"].to_numpy()
         adata.obs[ColumnNames.TREATMENT] = adata.obs[ColumnNames.TREATMENT].replace("NT", Values.CONTROL)
         adata.obs[ColumnNames.CONTEXT] = "stimulated"
+        holdout_context = "stimulated"
     else:
         raise NotImplementedError
 
     treatments = adata.obs[ColumnNames.TREATMENT].unique()
     perturbed_genes = sorted(g for g in treatments if g != Values.CONTROL and g in adata.var_names)
 
-    return adata, perturbed_genes
+    return adata, perturbed_genes, holdout_context
 
 
 def _rank_genes(adata: ad.AnnData) -> pd.Series:
@@ -128,6 +131,7 @@ def process_sc_data(
     seed: int = 42,
     min_samples: int = 200,
     n_top_genes: int = 50,
+    holdout_context: str | None = None,
 ) -> None:
     """Processes a single cell dataset.
 
@@ -137,24 +141,27 @@ def process_sc_data(
         seed: Random seed for reproducibility.
         min_samples: Minimum number of samples per treatment.
         n_top_genes: Number of top marker genes to select.
+        holdout_context: Context to hold out test conditions from, or None for the dataset's default.
     """
-    Path(cache_path).mkdir(parents=True, exist_ok=True)
-    file_path = Path(cache_path) / f"{dataset}.h5ad"
+    file_path = Path(cache_path) / dataset / f"split_{seed}.h5ad"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
     if file_path.is_file():
         logger.info(f"Processed dataset already exists at {file_path}. Skipping processing.")
         return
 
-    adata, required_genes = load_dataset(dataset)
+    adata, required_genes, default_holdout = load_dataset(dataset)
+    holdout_context = holdout_context or default_holdout
 
     counts = adata.obs[ColumnNames.TREATMENT].value_counts()
     keep_treatments = counts[counts >= min_samples].index
     adata = adata[adata.obs[ColumnNames.TREATMENT].isin(keep_treatments)].copy()
+    required_genes = [g for g in required_genes if g in keep_treatments]
 
     sc.pp.normalize_total(adata)
     sc.pp.log1p(adata)
 
-    adata = assign_split(adata, seed=seed)
+    adata = assign_split(adata, holdout_context=holdout_context, seed=seed)
 
     if required_genes:
         adata = _select_genes_with_required(adata, required_genes, n_top_genes)
@@ -202,9 +209,22 @@ def process_sc_data(
     default=50,
     help="Number of top marker genes to select.",
 )
-def main(dataset: DatasetName, cache_path: str, seed: int, min_samples: int, n_top_genes: int) -> None:
+@click.option(
+    "--holdout-context",
+    type=str,
+    default=None,
+    help="Context to hold out test conditions from (default: IFNγ for frangieh, stimulated for papalexi).",  # noqa: RUF001
+)
+def main(
+    dataset: DatasetName,
+    cache_path: str,
+    seed: int,
+    min_samples: int,
+    n_top_genes: int,
+    holdout_context: str | None,
+) -> None:
     """Process single-cell datasets."""
-    process_sc_data(dataset, cache_path, seed, min_samples, n_top_genes)
+    process_sc_data(dataset, cache_path, seed, min_samples, n_top_genes, holdout_context)
 
 
 if __name__ == "__main__":

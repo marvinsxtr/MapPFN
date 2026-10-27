@@ -12,6 +12,7 @@ from ml_project_template.wandb import WandBRun
 from map_pfn.data.data_module import DataModule
 from map_pfn.data.perturbation_dataset import PerturbationDataset
 from map_pfn.loss.loss_fn import fm_loss
+from map_pfn.models.dit import DiT
 from map_pfn.models.map_pfn import MapPFN
 from map_pfn.models.mmdit import MMDiT
 from map_pfn.train.jax_lightning import JaxLightningModule
@@ -68,7 +69,6 @@ DataModuleConfig = builds(
     dataset_path=MISSING,
     prior_dataset_path=None,
     dataset=PerturbationDatasetConfig,
-    ood=False,
     num_shots=8,
     batch_size=32,
     num_workers=cpu_count() - 1,
@@ -82,25 +82,27 @@ SCMDataModuleConfig = {
 }
 
 FrangiehFinetuneDataModuleConfig = {
-    "dataset_path": "datasets/single_cell/frangieh.h5ad",
+    "dataset_path": "datasets/single_cell/frangieh/split_10.h5ad",
     "dataset": {"num_samples": 200},
 }
 
 PapalexiFinetuneDataModuleConfig = {
-    "dataset_path": "datasets/single_cell/papalexi.h5ad",
+    "dataset_path": "datasets/single_cell/papalexi/split_10.h5ad",
     "dataset": {"num_samples": 200},
+    "drop_last": False,
 }
 
 FrangiehDataModuleConfig = {
-    "dataset_path": "datasets/single_cell/frangieh.h5ad",
+    "dataset_path": "datasets/single_cell/frangieh/split_10.h5ad",
     "prior_dataset_path": '${eval:\'"datasets/synthetic/sergio.h5ad" if "map_pfn" in "${cfg.name}" else None\'}',
     "dataset": {"num_samples": 200},
 }
 
 PapalexiDataModuleConfig = {
-    "dataset_path": "datasets/single_cell/papalexi.h5ad",
+    "dataset_path": "datasets/single_cell/papalexi/split_10.h5ad",
     "prior_dataset_path": '${eval:\'"datasets/synthetic/sergio.h5ad" if "map_pfn" in "${cfg.name}" else None\'}',
     "dataset": {"num_samples": 200},
+    "drop_last": False,
 }
 
 MMDiTConfig = builds(
@@ -114,6 +116,8 @@ MMDiTConfig = builds(
     num_reg_tokens=8,
     key=builds(jr.key, "${cfg.seed}"),
 )
+
+DiTConfig = builds(DiT, builds_bases=(MMDiTConfig,), embed_dim=448)
 
 MapPFNConfig = builds(
     MapPFN,

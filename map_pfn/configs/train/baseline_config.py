@@ -32,7 +32,6 @@ BaselineDataModuleConfig = builds(
     dataset_path=MISSING,
     prior_dataset_path=None,
     dataset=PerturbationDatasetConfig,
-    ood=False,
     num_shots=0,
     batch_size=MISSING,
     num_workers=cpu_count() - 1,

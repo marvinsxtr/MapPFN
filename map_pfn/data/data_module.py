@@ -18,7 +18,6 @@ class DataModule(LightningDataModule):
         dataset_path: str,
         dataset: Partial[Dataset],
         prior_dataset_path: str | None = None,
-        ood: bool = False,
         num_shots: int = 4,
         batch_size: int = 32,
         num_workers: int = 4,
@@ -32,7 +31,6 @@ class DataModule(LightningDataModule):
             dataset_path: Path to the h5ad file containing the data.
             dataset: Partial dataset to instantiate (e.g., Partial[PerturbationDataset]).
             prior_dataset_path: Optional path to a prior dataset used for training and additional evaluation.
-            ood: Whether to use out-of-distribution splits.
             num_shots: Number of context demonstrations per query.
             batch_size: Batch size for dataloaders.
             num_workers: Number of workers for dataloaders.
@@ -46,7 +44,6 @@ class DataModule(LightningDataModule):
         self.dataset_path = dataset_path
         self.prior_dataset_path = prior_dataset_path
         self.dataset = dataset
-        self.ood = ood
         self.num_shots = num_shots
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -73,11 +70,11 @@ class DataModule(LightningDataModule):
         Args:
             stage: One of 'fit', 'validate', 'test', or 'predict'.
         """
-        train_adata, val_adata, test_adata = split_dataset(self.adata, ood=self.ood)
-        num_shots = 0 if self.ood else self.num_shots
+        train_adata, val_adata, test_adata = split_dataset(self.adata)
+        num_shots = self.num_shots
 
         if self.add_prior:
-            prior_train_adata, prior_val_adata, prior_test_adata = split_dataset(self.prior_adata, ood=self.ood)
+            prior_train_adata, prior_val_adata, prior_test_adata = split_dataset(self.prior_adata)
 
         if stage == "fit":
             if self.add_prior:

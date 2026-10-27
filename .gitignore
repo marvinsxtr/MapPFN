@@ -168,7 +168,15 @@ lightning_logs
 perturbench_data
 
 /outputs
+/.worktrees
 /meta_flow_matching
 /condot
 /logs
 /data
+/checkpoints
+/inference_cache
+
+/scratch_*/
+
+*.err
+*.out
